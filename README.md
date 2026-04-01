@@ -1,0 +1,373 @@
+<div align="center">
+
+# ❤️ Heartify
+### Heart Attack Risk Prediction System
+
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.x-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.x-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
+![Plotly](https://img.shields.io/badge/Plotly-Interactive-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)
+![License](https://img.shields.io/badge/License-Academic-27AE60?style=for-the-badge)
+
+<br>
+
+> 🎓 **3rd Semester Research Project** — An end-to-end machine learning pipeline that predicts heart attack risk using 31 clinical, lifestyle, and demographic features, trained on 20,000 patient records and served through an interactive Streamlit web app.
+
+<br>
+
+⚠️ **For educational & research purposes only — not a substitute for professional medical advice.**
+
+</div>
+
+---
+
+## 📌 Table of Contents
+
+1. [Project Overview](#1-project-overview)
+2. [Tech Stack](#2-tech-stack)
+3. [Project Structure](#3-project-structure)
+4. [Dataset](#4-dataset)
+5. [Pipeline — Step by Step](#5-pipeline--step-by-step)
+   - [Step 1 — Data Preprocessing](#step-1--data-preprocessing)
+   - [Step 2 — Model Training](#step-2--model-training)
+   - [Step 3 — Model Testing & Diagnostics](#step-3--model-testing--diagnostics)
+   - [Step 4 — Streamlit Web App](#step-4--streamlit-web-app)
+6. [Model Performance](#6-model-performance)
+7. [App Features](#7-app-features)
+8. [Known Issues & Fixes](#8-known-issues--fixes)
+9. [How to Run](#9-how-to-run)
+10. [Output Files](#10-output-files)
+11. [Future Improvements](#11-future-improvements)
+
+---
+
+## 1. Project Overview
+
+**Heartify** is a full end-to-end ML project that covers everything from raw data to a deployed web interface:
+
+```
+Raw CSV  ──▶  Preprocessing  ──▶  Train 4 Models  ──▶  Evaluate & Diagnose  ──▶  Streamlit App
+```
+
+- Trains **four classifiers** — Logistic Regression, SVM, Decision Tree, Random Forest
+- Evaluates each on a held-out test set using Accuracy, F1, ROC-AUC, Sensitivity, Specificity
+- Serves predictions through a **real-time interactive dashboard** with risk gauges, clinical recommendations, and model comparison charts
+- Processes **31 input features** covering demographics, vitals, lab values, lifestyle, medical history, and symptoms
+
+---
+
+## 2. Tech Stack
+
+| Layer | Tools |
+|---|---|
+| Language | Python 3.10+ |
+| ML Models | scikit-learn |
+| Data Handling | pandas, numpy |
+| Visualisation | Plotly, matplotlib, seaborn |
+| Model Persistence | joblib |
+| Web App | Streamlit |
+
+---
+
+## 3. Project Structure
+
+```
+Heartify/
+│
+├── Datasets/
+│   └── heart_attack_risk_dataset_20k.csv   ← Raw dataset (20,000 records)
+│
+├── models/                                  ← Saved model artefacts
+│   ├── scaler.pkl                           ← Fitted StandardScaler
+│   ├── feature_names.pkl                    ← Ordered feature list
+│   ├── logistic_regression.pkl
+│   ├── svm.pkl
+│   ├── decision_tree.pkl
+│   └── random_forest.pkl
+│
+├── reports/                                 ← Auto-generated evaluation plots
+│   ├── model_comparison.csv                 ← All metrics in tabular form
+│   ├── feature_importance.png
+│   ├── prob_distributions.png
+│   ├── roc_curves.png
+│   ├── pr_curves.png
+│   ├── cv_boxplot.png
+│   └── confusion_matrices.png
+│
+├── train_models.py                          ← Step 1 + 2: Preprocess & train
+├── model_test.py                            ← Step 3: Evaluate & diagnose
+├── app.py                                   ← Step 4: Streamlit web app
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 4. Dataset
+
+**File:** `Datasets/heart_attack_risk_dataset_20k.csv`
+**Size:** 20,000 synthetic patient records | **Target:** `heart_attack_risk` (Binary: 0 = No Risk, 1 = At Risk)
+
+### Input Features
+
+| Category | Features |
+|---|---|
+| **Demographics** | Age, Gender, BMI |
+| **Vitals** | Systolic BP, Diastolic BP, Heart Rate |
+| **Lab Values** | Total Cholesterol, LDL, HDL, Triglycerides, Fasting Glucose, HbA1c, CRP |
+| **Lifestyle** | Smoking, Alcohol Consumption, Physical Activity, Diet Quality, Stress Level |
+| **Medical History** | Diabetes, Hypertension, Family History, Previous Heart Disease, Stroke, Kidney Disease |
+| **Clinical Tests** | ECG Abnormality, Left Ventricular Hypertrophy |
+| **Symptoms** | Chest Pain, Shortness of Breath, Fatigue, Dizziness |
+
+### Dropped Columns (before training)
+
+| Column | Reason |
+|---|---|
+| `patient_id` | Identifier — not a feature |
+| `risk_probability` | ⚠️ Data leakage — derived from target |
+| `risk_category` | ⚠️ Data leakage — derived from target |
+
+---
+
+## 5. Pipeline — Step by Step
+
+### Step 1 — Data Preprocessing
+
+**Script:** `train_models.py`
+
+1. Load CSV from `Datasets/`
+2. Drop `patient_id`, `risk_probability`, `risk_category`
+3. Encode categorical columns with `LabelEncoder`:
+   - `gender` → `{Female: 0, Male: 1}`
+   - `physical_activity` → `{High: 0, Low: 1, Moderate: 2}`
+   - `diet_quality` → similarly encoded
+4. Split → **80% train / 20% test** (`stratify=y`, `random_state=42`)
+5. Scale features with `StandardScaler` (fit on train only, transform both)
+6. Save `scaler.pkl` and `feature_names.pkl` to `models/`
+
+---
+
+### Step 2 — Model Training
+
+**Script:** `train_models.py`
+
+| Model | Scaling Required | Notes |
+|---|---|---|
+| Logistic Regression | ✅ Yes | Linear boundary, fast, interpretable |
+| SVM | ✅ Yes | Kernel-based, high-dimensional strength |
+| Decision Tree | ❌ No | Scale-invariant, explainable splits |
+| Random Forest | ❌ No | Ensemble, robust to noise |
+
+Each trained model is saved as a `.pkl` file under `models/`.
+
+---
+
+### Step 3 — Model Testing & Diagnostics
+
+**Script:** `model_test.py`
+
+Runs a full evaluation on the held-out **4,000-sample test set**.
+
+#### Metrics Computed
+
+| Metric | What It Tells You |
+|---|---|
+| **Accuracy** | Overall correct predictions |
+| **F1 Score** | Balance of precision and recall |
+| **ROC-AUC** | Discriminative power across all thresholds |
+| **Average Precision** | Performance under class imbalance |
+| **Sensitivity (Recall)** | How well it catches true heart attack cases |
+| **Specificity** | How well it avoids false alarms |
+
+#### Diagnostic Plots Generated → `reports/`
+
+| File | Description |
+|---|---|
+| `prob_distributions.png` | Predicted probability histograms — risk vs. no-risk per model |
+| `test_metrics_grouped.png` | Grouped bar chart comparing all metrics across all models |
+| `roc_curves.png` | Overlaid ROC curves with AUC values in legend |
+| `pr_curves.png` | Precision-Recall curves |
+| `cv_boxplot.png` | 5-Fold cross-validation score distribution |
+| `confusion_matrices.png` | Confusion matrix heatmaps for all models |
+| `feature_importance.png` | Top features ranked by importance (Random Forest) |
+
+Models are ranked by **ROC-AUC** — the winner is flagged as the recommended deployment model.
+
+---
+
+### Step 4 — Streamlit Web App
+
+**Script:** `app.py`
+
+#### Prediction Flow
+
+```
+User fills sidebar inputs (age, BP, cholesterol, lifestyle, symptoms...)
+        ↓
+Strings mapped to encoded integers (matching training encoding)
+        ↓
+Feature array assembled in exact training column order
+        ↓
+StandardScaler applied (for LR and SVM only)
+        ↓
+All 4 models run .predict() + .predict_proba() simultaneously
+        ↓
+Risk Level determined by probability threshold:
+  < 35%  →  🟢 LOW RISK
+ 35–65%  →  🟡 MODERATE RISK
+  > 65%  →  🔴 HIGH RISK
+        ↓
+Results + gauge chart + clinical recommendations displayed
+```
+
+#### App Tabs
+
+| Tab | Contents |
+|---|---|
+| 🔮 **Prediction** | Risk gauge, all 4 model scores, clinical recommendations |
+| 📊 **Model Comparison** | Performance table, radar chart, bar chart, ROC/PR curves, confusion matrices |
+| 📈 **Feature Analysis** | Feature importance plot, per-patient risk radar, binary risk factor table |
+| ℹ️ **About** | Project overview, feature categories, risk thresholds, dataset stats |
+
+---
+
+## 6. Model Performance
+
+> Test set: **4,000 samples** | Positive class rate: **52.6%** | Evaluation: **5-Fold Stratified K-Fold CV**
+
+| Model | Accuracy | F1 Score | ROC-AUC | Sensitivity | Specificity |
+|---|---|---|---|---|---|
+| 🏆 **Logistic Regression** | 0.7090 | 0.7186 | **0.7830** | 0.7066 | 0.7116 |
+| SVM | 0.7000 | 0.7038 | 0.7705 | 0.6781 | 0.7243 |
+| Random Forest | 0.6893 | 0.7017 | 0.7629 | 0.6952 | 0.6827 |
+| Decision Tree | 0.6450 | 0.6366 | 0.7003 | 0.5915 | 0.7043 |
+
+**🏆 Winner: Logistic Regression — ROC-AUC 0.7830**
+
+> Logistic Regression outperforms tree-based models here because feature–target relationships are approximately linear, and the 20,000-sample dataset is large enough to learn a stable linear boundary without overfitting.
+
+---
+
+## 7. App Features
+
+- 🔮 **Real-time risk prediction** with animated probability gauge
+- 🤖 **4 models run simultaneously** — compare predictions side by side
+- 💊 **Auto-generated clinical recommendations** based on patient input values
+- 📊 **Interactive Plotly charts** — radar, bar, ROC, PR curves, confusion matrices
+- 📱 **Fully responsive UI** — desktop, tablet, and mobile layouts
+- 🎨 **Custom branded design** — dark gradient sidebar, animated heartbeat footer
+
+---
+
+## 8. Known Issues & Fixes
+
+### 🐛 `ValueError: invalid literal for int() with base 10: 'N'`
+
+**Location:** `app.py` — alcohol encoding
+
+**Cause:** `int(alcohol[0])` slices the first character of `"No"` → `'N'` → cannot cast to int.
+
+```python
+# ❌ Broken
+alcohol_enc = int(alcohol[0])
+
+# ✅ Fix — explicit mapping dict
+alcohol_enc = {"None (0)": 0, "Moderate (1)": 1, "Heavy (2)": 2}[alcohol]
+```
+
+> Apply the same explicit dictionary mapping to **all** categorical widget inputs. Never rely on string slicing from dropdown values.
+
+---
+
+## 9. How to Run
+
+### Prerequisites
+
+```bash
+pip install -r requirements.txt
+```
+
+Or manually:
+
+```bash
+pip install pandas numpy scikit-learn matplotlib seaborn plotly joblib streamlit
+```
+
+### Step 1 — Train the models
+
+```bash
+python train_models.py
+```
+
+Saves all `.pkl` files to `models/` and evaluation plots to `reports/`.
+
+### Step 2 — Evaluate & diagnose (optional)
+
+```bash
+python model_test.py
+```
+
+Prints metrics to console and saves diagnostic plots to `reports/`.
+
+### Step 3 — Launch the web app
+
+```bash
+streamlit run app.py
+```
+
+Open your browser at **`http://localhost:8501`**
+
+---
+
+## 10. Output Files
+
+| Path | Generated By | Contents |
+|---|---|---|
+| `models/scaler.pkl` | `train_models.py` | Fitted StandardScaler |
+| `models/feature_names.pkl` | `train_models.py` | Ordered feature column list |
+| `models/*.pkl` | `train_models.py` | Trained classifiers |
+| `reports/model_comparison.csv` | `train_models.py` | All metrics tabulated |
+| `reports/feature_importance.png` | `train_models.py` | Feature importance chart |
+| `reports/prob_distributions.png` | `model_test.py` | Probability histograms |
+| `reports/roc_curves.png` | `model_test.py` | ROC curve overlay |
+| `reports/pr_curves.png` | `model_test.py` | Precision-Recall curves |
+| `reports/cv_boxplot.png` | `model_test.py` | Cross-validation boxplot |
+| `reports/confusion_matrices.png` | `model_test.py` | Confusion matrix heatmaps |
+
+---
+
+## 11. Future Improvements
+
+| Priority | Improvement |
+|---|---|
+| 🔴 High | **Fix all categorical encoding** in `app.py` — use explicit dicts, never string slicing |
+| 🔴 High | **Threshold optimisation** — shift from 0.5 toward ~0.4 to improve sensitivity (fewer missed cases) |
+| 🟡 Medium | **SHAP explainability** — show users which features drove their individual risk score |
+| 🟡 Medium | **XGBoost / LightGBM** — likely higher AUC with gradient boosting |
+| 🟡 Medium | **Proper categorical encoding** — replace `LabelEncoder` with `OrdinalEncoder` / `OneHotEncoder` where appropriate |
+| 🟢 Low | **Hyperparameter tuning** via `GridSearchCV` or `Optuna` for SVM and Random Forest |
+| 🟢 Low | **Deploy to Streamlit Cloud** for public access without local setup |
+| 🟢 Low | **Export PDF report** of prediction results for the patient |
+
+---
+
+## 🚦 Risk Classification Reference
+
+| Level | Threshold | Meaning |
+|---|---|---|
+| 🟢 Low Risk | Probability < 35% | Low cardiovascular risk indicators |
+| 🟡 Moderate Risk | 35% – 65% | Some risk factors present — monitor closely |
+| 🔴 High Risk | Probability > 65% | Multiple high-risk indicators — consult a doctor |
+
+---
+
+<div align="center">
+
+**© 2026 Heartify — 3rd Semester Research Project**
+
+Made with ❤️ for academic research &nbsp;|&nbsp; Not for clinical use
+
+*Powered by Python · scikit-learn · Streamlit · Plotly*
+
+</div>
