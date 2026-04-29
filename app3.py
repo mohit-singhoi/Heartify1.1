@@ -13,6 +13,11 @@ import joblib
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
+import datetime
+import streamlit.components.v1 as components
+
+# Import AI Assistant module
+from utils.ai_assistant import HeartifyAIAssistant
 
 warnings.filterwarnings("ignore")
 
@@ -121,6 +126,9 @@ def load_models():
         return None, None, None, str(e)
 
 scaler, feature_names, models, load_err = load_models()
+
+# ── Initialize AI Assistant ───────────────────────────────────────────────────
+ai_assistant = HeartifyAIAssistant()
 
 NEEDS_SCALING = {
     "Logistic Regression": True, "SVM": True,
@@ -505,36 +513,201 @@ with tab3:
         risk_count = b_df["Present"].sum()
         st.dataframe(b_df[["Risk Factor","Status"]], use_container_width=True)
         st.metric("Total Risk Factors Present", f"{risk_count} / {len(b_df)}")
-        
-        
 
 # ══════════════════════════════════════════════════════════════════
-# TAB 4 — AI ASSISTANT
+# TAB 4 — AI ASSISTANT (Google Gemini - FREE)
+# ══════════════════════════════════════════════════════════════════
 with tab4:
-    st.markdown('<div class="section-title">🤖 AI Assistant</div>', unsafe_allow_html=True)
-    st.markdown("""
-    **Ask questions about heart attack risk factors, prevention, and lifestyle advice!**
+    st.markdown('<div class="section-title">🤖 AI Health Assistant (Powered by Google Gemini)</div>', unsafe_allow_html=True)
     
-    This AI assistant is powered by a large language model trained on medical literature and clinical guidelines. 
-    You can ask it anything related to cardiovascular health, and it will provide evidence-based answers.
+    # Get AI assistant status
+    ai_status = ai_assistant.get_status()
     
-    ### Example Questions:
-    - "What are the top modifiable risk factors for heart attacks?"
-    - "How does smoking affect heart attack risk?"
-    - "What lifestyle changes can reduce my risk of a heart attack?"
-    - "How do cholesterol levels influence cardiovascular health?"
-    - "What is the role of stress in heart disease?"
+    if not ai_status["available"]:
+        # Show Gemini setup instructions (not OpenAI)
+        st.warning(f"""
+        ⚠️ **Google Gemini API Key Required for Live AI Features**
+        
+        {ai_status['message']}
+        
+        **📝 Setup Instructions:**
+        
+        1. Get a **FREE** API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+        2. Create a folder called `.streamlit` in your project root
+        3. Create a file called `secrets.toml` inside `.streamlit`
+        4. Add your API key: `GEMINI_API_KEY = "your-key-here"`
+        5. Restart the application
+        
+        **💰 Pricing:** Gemini API has a **GENEROUS FREE TIER** (60 requests per minute free!)
+        
+        **💡 While you wait:** I can still provide basic educational information!
+        """)
+        
+        # Show demo with fallback responses
+        st.info("💡 **Try asking a question (using offline knowledge base):**")
+        
+        demo_question = st.text_input("Ask a question about heart health:", placeholder="e.g., What are ideal blood pressure levels?")
+        
+        if demo_question:
+            with st.spinner("Getting response..."):
+                response = ai_assistant.get_response(demo_question)
+                st.markdown(f"**Response:**\n\n{response}")
     
-    > 💡 **Tip**: Try asking specific questions about your patient's profile for personalized advice!
-    """)
+    else:
+        # Full Gemini integration
+        st.success("✅ Google Gemini Connected! AI assistant is ready to answer your cardiovascular health questions.")
+        
+        # Model selection and info
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.markdown("""
+            **Ask me anything about heart health (Powered by Google Gemini):**
+            - ❤️ Risk factors & prevention strategies
+            - 🩺 Blood pressure, cholesterol, diabetes management
+            - 🍎 Diet, nutrition, and heart-healthy lifestyle
+            - 🏃 Exercise recommendations for cardiovascular health
+            - 🧘 Stress management techniques
+            - ⚠️ Warning signs & symptoms of heart attack
+            - 💊 Medications (general information only)
+            - 📊 Understanding lab results & medical tests
+            """)
+        
+        with col2:
+            st.info("**🤖 Model:** Google Gemini 2.0 Flash\n\n**Status:** 🟢 Live\n\n**Tier:** Free")
+        
+        st.markdown("---")
+        
+        # Initialize chat history in session state
+        if "chat_messages" not in st.session_state:
+            st.session_state.chat_messages = []
+            st.session_state.chat_initialized = False
+        
+        # Show welcome message only once
+        if not st.session_state.chat_initialized:
+            welcome_msg = "👋 Hello! I'm Heartify AI, powered by **Google Gemini**. I specialize in cardiovascular health and heart attack prevention. What would you like to know?\n\n💡 **Try asking:**\n• What are the warning signs of a heart attack?\n• How can I lower my blood pressure naturally?\n• What's a heart-healthy meal plan?\n• How does stress affect my heart?"
+            st.session_state.chat_messages.append({"role": "assistant", "content": welcome_msg})
+            st.session_state.chat_initialized = True
+        
+        # Quick question buttons
+        st.markdown("**📝 Quick Questions (click to ask):**")
+        quick_cols = st.columns(4)
+        quick_questions = [
+            ("❤️ Risk Factors", "What are the top 5 modifiable risk factors for heart attack?"),
+            ("🥗 Diet", "What is the Mediterranean diet and why is it heart-healthy?"),
+            ("🏃 Exercise", "How much exercise do I need for optimal heart health?"),
+            ("🩸 BP & Cholesterol", "What are ideal blood pressure and cholesterol levels?")
+        ]
+        
+        for i, (label, question) in enumerate(quick_questions):
+            with quick_cols[i]:
+                if st.button(label, key=f"quick_{i}", use_container_width=True):
+                    st.session_state.quick_question = question
+                    st.session_state.ask_quick = True
+        
+        st.markdown("---")
+        
+        # Display chat history
+        chat_container = st.container()
+        with chat_container:
+            for msg in st.session_state.chat_messages:
+                if msg["role"] == "user":
+                    st.markdown(f"**👤 You:** {msg['content']}")
+                else:
+                    st.markdown(f"**🤖 Heartify AI (Gemini):** {msg['content']}")
+                st.markdown("---")
+        
+        # User input area
+        default_question = st.session_state.get("quick_question", "")
+        user_question = st.text_area(
+            "💬 Your question:",
+            value=default_question,
+            placeholder="Ask anything about cardiovascular health...",
+            key="user_question_input",
+            height=100
+        )
+        
+        # Action buttons
+        col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 1])
+        with col_btn1:
+            submit_btn = st.button("📤 Send to Gemini", type="primary", use_container_width=True)
+        with col_btn2:
+            clear_btn = st.button("🗑️ Clear Chat History", use_container_width=True)
+        with col_btn3:
+            if st.button("📊 Add Patient Context", use_container_width=True):
+                if 'predict_btn' in locals() and predict_btn:
+                    # Store patient context for the AI
+                    patient_context = {
+                        'age': age,
+                        'gender': gender,
+                        'bmi': bmi,
+                        'systolic_bp': systolic_bp,
+                        'diastolic_bp': diastolic_bp,
+                        'total_cholesterol': total_cholesterol,
+                        'ldl': ldl,
+                        'hdl': hdl,
+                        'smoking': smoking,
+                        'diabetes': diabetes,
+                        'hypertension': hypertension,
+                        'family_history': family_hist
+                    }
+                    st.session_state.include_context = patient_context
+                    st.success(f"✅ Patient context added! Age: {age}, BP: {systolic_bp}/{diastolic_bp}")
+                else:
+                    st.warning("⚠️ Please run a heart attack risk prediction first (click 'Predict Risk' in sidebar).")
+        
+        # Handle clear chat
+        if clear_btn:
+            st.session_state.chat_messages = []
+            st.session_state.chat_initialized = False
+            st.session_state.quick_question = ""
+            st.session_state.ask_quick = False
+            st.rerun()
+        
+        # Handle question submission
+        should_process = False
+        question_to_process = ""
+        
+        if submit_btn and user_question.strip():
+            should_process = True
+            question_to_process = user_question.strip()
+        elif st.session_state.get("ask_quick", False):
+            should_process = True
+            question_to_process = st.session_state.quick_question
+        
+        if should_process and question_to_process:
+            # Add user message to chat history
+            st.session_state.chat_messages.append({"role": "user", "content": question_to_process})
+            
+            # Prepare patient context if available
+            patient_context = st.session_state.get("include_context", None)
+            
+            # Get AI response with spinner
+            with st.spinner("🧠 Google Gemini is thinking..."):
+                try:
+                    # Call the AI assistant
+                    response = ai_assistant.get_response(
+                        question_to_process, 
+                        patient_context, 
+                        None
+                    )
+                    
+                    # Add assistant response to chat history
+                    st.session_state.chat_messages.append({"role": "assistant", "content": response})
+                    
+                except Exception as e:
+                    error_msg = f"❌ **Error**: {str(e)}. Using offline knowledge base."
+                    response = ai_assistant._get_offline_response(question_to_process)
+                    st.session_state.chat_messages.append({"role": "assistant", "content": response})
+            
+            # Clean up temporary session variables
+            st.session_state.quick_question = ""
+            st.session_state.ask_quick = False
+            st.session_state.include_context = None
+            st.rerun()
     
-    # Ask user though AI assistant    user_question = st.text_input("Ask the AI Assistant a question about heart attack risk:")
-    # if user_question:
-    #     # Placeholder response — replace with actual LLM integration
-    #     ai_response = "This is a placeholder response. Integrate with an LLM to provide real answers based on the question asked."
-    #     st.markdown(f"**AI Assistant Response:**  \n{ai_response}")
-    
-    
+    # Medical disclaimer for AI assistant
+    st.markdown("---")
+    st.caption("⚠️ **Medical Disclaimer:** This AI assistant provides general health information for educational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician or other qualified health provider.")
 
 # ══════════════════════════════════════════════════════════════════
 # TAB 5 — ABOUT THIS APPLICATION
@@ -565,41 +738,42 @@ with tab5:
     | **Decision Tree** | Rule-based; fully explainable; prone to overfitting if not tuned |
     | **Random Forest** | Ensemble of 200 trees; typically best accuracy & robustness |
 
-    ### Workflow
-    ```
-    1. python train_models.py   →  trains all 4 models, saves to models/
-    2. python model_test.py     →  evaluates on held-out test set, saves plots to reports/
-    3. streamlit run app.py     →  launches this web application
-    ```
+    ### AI Assistant
+    The integrated AI assistant uses **OpenAI's ChatGPT** to provide intelligent, context-aware responses about cardiovascular health. Features include:
+    - 🤖 Natural language Q&A about heart health
+    - 📊 Optional patient context integration
+    - 🚀 GPT-3.5 Turbo (fast) or GPT-4 (detailed) models
+    - 💬 Persistent chat history within session
+    - 🔒 Privacy-focused (no data stored permanently)
 
-    ### Risk Thresholds
-    | Risk Level | Probability |
-    |---|---|
-    | 🟢 Low Risk | < 35% |
-    | 🟡 Moderate Risk | 35% – 65% |
-    | 🔴 High Risk | > 65% |
+### Workflow
+    
+    
+### Risk Thresholds
+| Risk Level | Probability |
+|---|---|
+| 🟢 Low Risk | < 35% |
+| 🟡 Moderate Risk | 35% – 65% |
+| 🔴 High Risk | > 65% |
 
-    ---
-    > ⚠️ **Disclaimer**: This tool is for **research and educational purposes only**.
-    > It should NOT be used as a substitute for professional medical diagnosis or treatment.
-    """)
+---
+> ⚠️ **Disclaimer**: This tool is for **research and educational purposes only**.
+> It should NOT be used as a substitute for professional medical diagnosis or treatment.
+""")
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.metric("Dataset Size", "20,000 patients")
-        st.metric("Features", "31 input variables")
-        st.metric("Train / Test Split", "80% / 20%")
-    with col_b:
-        st.metric("Cross-Validation", "5-fold Stratified K-Fold")
-        st.metric("Models Compared", "4")
-        st.metric("Evaluation Metrics", "Accuracy, F1, AUC, Precision, Recall")
+col_a, col_b = st.columns(2)
+with col_a:
+    st.metric("Dataset Size", "20,000 patients")
+    st.metric("Features", "31 input variables")
+    st.metric("Train / Test Split", "80% / 20%")
+with col_b:
+    st.metric("Cross-Validation", "5-fold Stratified K-Fold")
+    st.metric("Models Compared", "4")
+    st.metric("Evaluation Metrics", "Accuracy, F1, AUC, Precision, Recall")
 
 # ══════════════════════════════════════════════════════════════════
-# FOOTER  — uses st.components.v1.html (own iframe, never blocked)
+# FOOTER
 # ══════════════════════════════════════════════════════════════════
-import datetime
-import streamlit.components.v1 as components
-
 current_year = datetime.datetime.now().year
 
 footer_html = f"""  
@@ -607,138 +781,139 @@ footer_html = f"""
 <html>
 <head>
 <style>
-  * {{ margin:0; padding:0; box-sizing:border-box; }}
-  body {{ background:transparent; font-family:'Inter',sans-serif; padding:8px 0 0 0; }}
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ background:transparent; font-family:'Inter',sans-serif; padding:8px 0 0 0; }}
 
-  @keyframes shimmer {{
-    0%   {{ background-position:200% 0; }}
-    100% {{ background-position:-200% 0; }}
-  }}
-  @keyframes beat {{
-    0%,100% {{ transform:scale(1);    }}
-    14%     {{ transform:scale(1.25); }}
-    28%     {{ transform:scale(1);    }}
-    42%     {{ transform:scale(1.2);  }}
-    70%     {{ transform:scale(1);    }}
-  }}
+@keyframes shimmer {{
+0%   {{ background-position:200% 0; }}
+100% {{ background-position:-200% 0; }}
+}}
+@keyframes beat {{
+0%,100% {{ transform:scale(1);    }}
+14%     {{ transform:scale(1.25); }}
+28%     {{ transform:scale(1);    }}
+42%     {{ transform:scale(1.2);  }}
+70%     {{ transform:scale(1);    }}
+}}
 
-  .footer {{
-    background: linear-gradient(135deg,#1a1a2e 0%,#16213e 55%,#0f3460 100%);
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 -4px 40px rgba(192,57,43,0.2);
-  }}
-  .accent {{
-    height: 4px;
-    background: linear-gradient(90deg,#c0392b,#8e44ad,#c0392b);
-    background-size: 200% 100%;
-    animation: shimmer 3s linear infinite;
-  }}
-  .inner {{ padding: 28px 36px 22px 36px; }}
+.footer {{
+background: linear-gradient(135deg,#1a1a2e 0%,#16213e 55%,#0f3460 100%);
+border-radius: 16px;
+overflow: hidden;
+box-shadow: 0 -4px 40px rgba(192,57,43,0.2);
+}}
+.accent {{
+height: 4px;
+background: linear-gradient(90deg,#c0392b,#8e44ad,#c0392b);
+background-size: 200% 100%;
+animation: shimmer 3s linear infinite;
+}}
+.inner {{ padding: 28px 36px 22px 36px; }}
 
-  .brand {{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }}
-  .brand-icon {{ font-size:22px; animation:beat 1.4s ease-in-out infinite; display:inline-block; }}
-  .brand-name {{ font-size:20px; font-weight:700; color:#fff; letter-spacing:0.5px; }}
-  .brand-tag {{ font-size:10px; color:#a8d8ea; letter-spacing:2px; text-transform:uppercase; margin-bottom:22px; }}
+.brand {{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }}
+.brand-icon {{ font-size:22px; animation:beat 1.4s ease-in-out infinite; display:inline-block; }}
+.brand-name {{ font-size:20px; font-weight:700; color:#fff; letter-spacing:0.5px; }}
+.brand-tag {{ font-size:10px; color:#a8d8ea; letter-spacing:2px; text-transform:uppercase; margin-bottom:22px; }}
 
-  .grid {{ display:grid; grid-template-columns:1.5fr 1fr 1fr; gap:28px; margin-bottom:22px; }}
+.grid {{ display:grid; grid-template-columns:1.5fr 1fr 1fr; gap:28px; margin-bottom:22px; }}
 
-  .col-title {{
-    font-size:9px; font-weight:700; letter-spacing:2.5px;
-    text-transform:uppercase; color:#c0392b; margin-bottom:10px;
-  }}
-  .col p {{ font-size:12px; color:#cbd5e1; line-height:1.75; }}
-  .col ul {{ list-style:none; }}
-  .col li {{ font-size:12px; color:#cbd5e1; line-height:1.95; }}
-  .col li::before {{ content:"› "; color:#8e44ad; font-weight:700; }}
+.col-title {{
+font-size:9px; font-weight:700; letter-spacing:2.5px;
+text-transform:uppercase; color:#c0392b; margin-bottom:10px;
+}}
+.col p {{ font-size:12px; color:#cbd5e1; line-height:1.75; }}
+.col ul {{ list-style:none; }}
+.col li {{ font-size:12px; color:#cbd5e1; line-height:1.95; }}
+.col li::before {{ content:"› "; color:#8e44ad; font-weight:700; }}
 
-  .warn {{ font-size:11px; color:#94a3b8; line-height:1.6; margin-top:8px; }}
+.warn {{ font-size:11px; color:#94a3b8; line-height:1.6; margin-top:8px; }}
 
-  .pills {{ display:flex; flex-wrap:wrap; gap:5px; margin-top:12px; }}
-  .pill {{
-    background:rgba(192,57,43,0.18);
-    border:1px solid rgba(192,57,43,0.4);
-    color:#fca5a5;
-    font-size:10px; font-weight:600;
-    padding:3px 10px; border-radius:20px;
-  }}
+.pills {{ display:flex; flex-wrap:wrap; gap:5px; margin-top:12px; }}
+.pill {{
+background:rgba(192,57,43,0.18);
+border:1px solid rgba(192,57,43,0.4);
+color:#fca5a5;
+font-size:10px; font-weight:600;
+padding:3px 10px; border-radius:20px;
+}}
 
-  .divider {{ border:none; border-top:1px solid rgba(255,255,255,0.09); margin:0 0 16px; }}
+.divider {{ border:none; border-top:1px solid rgba(255,255,255,0.09); margin:0 0 16px; }}
 
-  .bottom {{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }}
-  .copy {{ font-size:11px; color:#94a3b8; }}
-  .copy strong {{ color:#c0392b; }}
-  .copy .heart {{ display:inline-block; animation:beat 1.4s ease-in-out infinite; }}
-  .rights {{ font-size:10px; color:#64748b; text-align:right; line-height:1.7; }}
+.bottom {{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }}
+.copy {{ font-size:11px; color:#94a3b8; }}
+.copy strong {{ color:#c0392b; }}
+.copy .heart {{ display:inline-block; animation:beat 1.4s ease-in-out infinite; }}
+.rights {{ font-size:10px; color:#64748b; text-align:right; line-height:1.7; }}
 </style>
 </head>
 <body>
 <div class="footer">
-  <div class="accent"></div>
-  <div class="inner">
+<div class="accent"></div>
+<div class="inner">
 
-    <div class="brand">
-      <span class="brand-icon">❤️</span>
-      <span class="brand-name">Heartify</span>
-    </div>
-    <div class="brand-tag">Heart Attack Risk Prediction System</div>
+<div class="brand">
+  <span class="brand-icon">❤️</span>
+  <span class="brand-name">Heartify</span>
+</div>
+<div class="brand-tag">Heart Attack Risk Prediction System</div>
 
-    <div class="grid">
-      <div class="col">
-        <div class="col-title">About the Project</div>
-        <p>Heartify is an AI-powered cardiovascular risk assessment tool built as an
-        academic research project. It analyses 31 clinical, lifestyle, and demographic
-        features to estimate heart attack probability using four ML classifiers trained
-        on 20,000 patient records.</p>
-        <p class="warn">⚠️ For educational &amp; research use only.<br>
-        Not a substitute for professional medical advice.</p>
-      </div>
-
-      <div class="col">
-        <div class="col-title">ML Models Used</div>
-        <ul>
-          <li>Logistic Regression</li>
-          <li>Support Vector Machine</li>
-          <li>Decision Tree</li>
-          <li>Random Forest</li>
-        </ul>
-        <div class="pills">
-          <span class="pill">scikit-learn</span>
-          <span class="pill">pandas</span>
-          <span class="pill">Streamlit</span>
-          <span class="pill">Plotly</span>
-          <span class="pill">joblib</span>
-        </div>
-      </div>
-
-      <div class="col">
-        <div class="col-title">Project Info</div>
-        <ul>
-          <li>3rd Semester Research Project</li>
-          <li>Dataset: 20,000 patient records</li>
-          <li>Features: 31 input variables</li>
-          <li>Best Model: Logistic Regression</li>
-          <li>Best ROC-AUC: 0.7830</li>
-          <li>Evaluation: 5-Fold Stratified CV</li>
-        </ul>
-      </div>
-    </div>
-
-    <hr class="divider">
-
-    <div class="bottom">
-      <div class="copy">
-        <span class="heart">❤️</span>&nbsp;
-        © {current_year} <strong>Heartify</strong> — Heart Attack Risk Prediction System.
-        All rights reserved.
-      </div>
-      <div class="rights">
-        Built for academic research &nbsp;|&nbsp; Not for clinical use<br>
-        Powered by Python · scikit-learn · Streamlit
-      </div>
-    </div>
-
+<div class="grid">
+  <div class="col">
+    <div class="col-title">About the Project</div>
+    <p>Heartify is an AI-powered cardiovascular risk assessment tool built as an
+    academic research project. It analyses 31 clinical, lifestyle, and demographic
+    features to estimate heart attack probability using four ML classifiers trained
+    on 20,000 patient records.</p>
+    <p class="warn">⚠️ For educational &amp; research use only.<br>
+    Not a substitute for professional medical advice.</p>
   </div>
+
+  <div class="col">
+    <div class="col-title">ML Models Used</div>
+    <ul>
+      <li>Logistic Regression</li>
+      <li>Support Vector Machine</li>
+      <li>Decision Tree</li>
+      <li>Random Forest</li>
+    </ul>
+    <div class="pills">
+      <span class="pill">scikit-learn</span>
+      <span class="pill">pandas</span>
+      <span class="pill">Streamlit</span>
+      <span class="pill">Plotly</span>
+      <span class="pill">joblib</span>
+      <span class="pill">OpenAI</span>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="col-title">Project Info</div>
+    <ul>
+      <li>3rd Semester Research Project</li>
+      <li>Dataset: 20,000 patient records</li>
+      <li>Features: 31 input variables</li>
+      <li>Best Model: Logistic Regression</li>
+      <li>Best ROC-AUC: 0.7830</li>
+      <li>Evaluation: 5-Fold Stratified CV</li>
+    </ul>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="bottom">
+  <div class="copy">
+    <span class="heart">❤️</span>&nbsp;
+    © {current_year} <strong>Heartify</strong> — Heart Attack Risk Prediction System.
+    All rights reserved.
+  </div>
+  <div class="rights">
+    Built for academic research &nbsp;|&nbsp; Not for clinical use<br>
+    Powered by Python · scikit-learn · Streamlit · OpenAI
+  </div>
+</div>
+
+</div>
 </div>
 </body>
 </html>
