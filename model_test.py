@@ -1,6 +1,7 @@
 # =============================================================================
 #  Heart Attack Risk Prediction — Model Testing & Diagnostics
 #  model_test.py
+#  Test the trained Model
 # =============================================================================
 
 import os
