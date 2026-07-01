@@ -364,7 +364,7 @@ Open your browser at **`http://localhost:8501`**
 
 <div align="center">
 
-**© 2026 Heartify — 3rd Semester Research Project**
+**© 2026 Heartify — 4th Semester Research Project**
 
 Made with ❤️ for academic research &nbsp;|&nbsp; Not for clinical use
 
