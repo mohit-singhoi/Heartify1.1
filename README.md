@@ -126,7 +126,7 @@ Heartify features a modern responsive interface with a custom-designed footer, c
 
 Watch the complete demo of **Heartify 1.1** here:
 
-[▶️ Watch Demo Video on Google Drive](https://drive.google.com/file/d/1RQbZoucitZmiZDfLRI_Ym-hBt8MdjDcU/view?usp=sharing)
+[▶️ Watch Demo Video on Google Drive](https://drive.google.com/file/d/1bIcjeQTBsTcDNTeGaTuDshARa9igAUHd/view?usp=sharing)
 
 
 ## 2. Tech Stack
