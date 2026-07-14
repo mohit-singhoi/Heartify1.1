@@ -158,7 +158,7 @@ if load_err:
 with st.sidebar:
     st.markdown("## 🩺 Patient Information")
     # Patient Name 
-    patient_name = st.text_input("Patient Name", placeholder="e.g. John Doe")
+    patient_name = st.text_input("Patient Name", placeholder="e.g. Mohit Kumar")
     st.markdown("---")
 
     st.markdown("### 👤 Demographics")
